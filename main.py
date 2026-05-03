@@ -16,9 +16,8 @@ from processor import (
 )
 import processor   # needed to read _last_ext_lines after lane functions update it
 
-# ── State memory (main process) ──────────────────────────────
-# Kept here so main.py owns the ghost / cooldown counters
-# (processor.py owns _last_lane_mask and _last_ext_lines).
+
+
 _ghost_frame_count = 0
 _last_good_align   = "Centered"
 _kmeans_cooldown   = 0
@@ -50,7 +49,7 @@ def main():
         print(f" Cannot open: {source}")
         return
 
-    # ── Launch YOLO worker and wait for model to load ────────
+    # Launch YOLO worker and wait for model to load 
     frame_queue  = mp.Queue(maxsize=1)
     result_queue = mp.Queue(maxsize=1)
     ready_event  = mp.Event()
@@ -72,7 +71,7 @@ def main():
     screenshot_n = 0
     _latest_dets = []   # always holds the most recent YOLO result
 
-    # ── Pre-initialise ext_lines so YOLO can start from frame 1 ──
+    # Pre-initialise ext_lines so YOLO can start from frame 1 
     # Peek at the first frame to derive a sensible default trapezoid,
     # then rewind so the main loop processes every frame normally.
     _ret, _peek = cap.read()
@@ -87,7 +86,7 @@ def main():
 
     print("\n Running — Q to quit, S to screenshot\n")
 
-    # ── Debug window setup ───────────────────────────────────
+    #Debug window setup 
     cv2.namedWindow("Self-Driving Final Output", cv2.WINDOW_NORMAL)
 
     if SHOW_INTERMEDIATES:
@@ -127,14 +126,14 @@ def main():
             if frame_id == 1:
                 print(f"Normal video size: {img.shape[1]}x{img.shape[0]}")
 
-        # ── 1. Colour & edge processing ──────────────────────
+        # 1. Colour & edge processing
         mask, edges, has_lane = extract_lane_color_mask(img)
 
         if SHOW_INTERMEDIATES:
             cv2.imshow("Intermediary 1: Color Mask", mask)
             cv2.imshow("Intermediary 2: Canny Edges", edges)
 
-        # ── 2. Lane detection ────────────────────────────────
+        # 2. Lane detection
         if has_lane:
             # Colour mask gave enough edges — use Hough directly
             lane_img, lane_mask, align = detect_and_draw_two_strongest_lines(img, edges)
@@ -160,7 +159,7 @@ def main():
                 cv2.imshow("Intermediary 4: Lane Polygon Mask", lane_mask)
                 cv2.imshow("Intermediary 5: Hough Line Frame", lane_img)
 
-        # ── 3. Ghost forgiveness ─────────────────────────────
+        # 3. Ghost forgiveness
         # Hold the last known alignment for up to GHOST_FORGIVENESS frames
         # so brief lane-loss events don't immediately trigger a stop.
         if align == "Ghost":
@@ -177,7 +176,7 @@ def main():
             _last_good_align   = align
             effective_align    = align
 
-        # ── 4. Dynamic YOLO submission rate ─────────────────
+        #  4. Dynamic YOLO submission rate 
         # Submit fewer frames when stopped (HOLD) to reduce CPU load,
         # and the most frames during VERIFY for maximum accuracy.
         if   object_detection_state == "MOVE":   YOLO_SUBMIT_EVERY = 2
@@ -197,7 +196,7 @@ def main():
             ext_neg = ext_lines_snapshot[0]
             ext_pos = ext_lines_snapshot[1]
 
-            # optional debug warp view
+            
             try:
                 warped_view, _ = warp_lane_area(img, ext_neg, ext_pos)
                 if SHOW_INTERMEDIATES:
@@ -207,7 +206,7 @@ def main():
 
             frame_id_snapshot = frame_id
 
-            # CRITICAL FIX: force queue to behave like "latest-frame buffer"
+            
             try:
                 if frame_queue.full():
                     try:
@@ -222,7 +221,7 @@ def main():
             except mp.queues.Full:
                 pass
 
-        # ── 5. Collect YOLO result (non-blocking) ────────────
+        #  5. Collect YOLO result
         got_new_result = False
         try:
             new_dets     = result_queue.get_nowait()
@@ -239,7 +238,7 @@ def main():
         if not obj_found and object_detection_state == "MOVE":
             active_object_labels = []
 
-        # ── 6. Object state machine ──────────────────────────
+        # 6. Object state machine 
         # MOVE  → object detected               → HOLD
         # HOLD  → hold expires with no object   → VERIFY
         # VERIFY→ fresh YOLO confirms clear      → MOVE
@@ -272,7 +271,7 @@ def main():
                     if verify_frames <= 0:
                         object_detection_state = "MOVE"
 
-        # ── 7. Render output ─────────────────────────────────
+        #  7. Render output 
         det_labels = [d[0] for d in dets_orig]
         if dets_orig:
             lane_img = draw_yolo_boxes(lane_img, dets_orig)
@@ -302,7 +301,7 @@ def main():
                   f"Align: {effective_align:10s} | {move_decision} / {steer_decision} | "
                   f"Objects: {set(det_labels) if det_labels else '—'}")
 
-        # ── 8. Input handling ────────────────────────────────
+        #  8. Input handling 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             break
@@ -312,7 +311,7 @@ def main():
             screenshot_n += 1
             print(f" Saved {fname}")
 
-    # ── Shutdown ─────────────────────────────────────────────
+    # Shutdown
     frame_queue.put(None)      # sentinel tells YOLO worker to exit
     yolo_proc.join(timeout=3)
     cap.release()
