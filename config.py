@@ -1,4 +1,4 @@
-# ── YOLO Config ─────────────────────────────────────────────
+# YOLO Config 
 YOLO_MODEL    = "yolov8n.pt"
 YOLO_CONF     = 0.25
 YOLO_IMG_SIZE = 320
@@ -9,7 +9,7 @@ CLASS_MIN_CONF = {
     0:  0.45,
     2:  0.30,
     7:  0.30,
-    3:  0.25,  # motorcycle
+    3:  0.25,  
     9:  0.30,
     10: 0.25,
     11: 0.30,
@@ -27,6 +27,6 @@ CLASSES_WE_CARE_ABOUT = {
     58: ("potted plant", (0,  255, 255)),
 }
 
-# ── Lane / Ghost Config ──────────────────────────────────────
+# Lane / Ghost Config 
 GHOST_FORGIVENESS    = 90   # frames to hold last known alignment when lane is lost
 KMEANS_COOLDOWN_FRAMES = 4  # re-run k-means only every 4th frame in the fallback path
