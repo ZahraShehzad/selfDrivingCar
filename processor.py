@@ -9,7 +9,7 @@ from config import (
     CLASS_MIN_CONF, CLASSES_WE_CARE_ABOUT,
 )
 
-# ── State memory (main process only) ────────────────────────
+#  State memory 
 # These are mutated by lane-detection functions each frame.
 # The YOLO worker process has its own copy — no sharing needed.
 _last_lane_mask  = None   # last successfully drawn lane fill mask
@@ -65,11 +65,10 @@ def yolo_process_worker(frame_queue: mp.Queue, result_queue: mp.Queue, ready_eve
 def _run_yolo(model, img, ext_neg, ext_pos):
     fh, fw = img.shape[:2]
 
-    # ─────────────────────────────────────────────
+    
     # STEP 1: WARP THE LANE TRAPEZOID
     # Only pixels inside the lane trapezoid survive the warp
-    # Cars parked outside the lane are NOT in the warped image at all
-    # ─────────────────────────────────────────────
+   
     OUTPUT_W, OUTPUT_H = 416, 416
 
     # SAFE CHECK (prevents crash / bad warp)
@@ -99,9 +98,8 @@ def _run_yolo(model, img, ext_neg, ext_pos):
     if warped.shape[0] < 10 or warped.shape[1] < 10:
         return []
 
-    # ─────────────────────────────────────────────
+    
     # STEP 2: RUN YOLO ON WARPED LANE IMAGE
-    # ─────────────────────────────────────────────
     results = model(warped, imgsz=YOLO_IMG_SIZE, conf=0.20, verbose=False)
 
     frame_area = fh * fw
@@ -127,7 +125,7 @@ def _run_yolo(model, img, ext_neg, ext_pos):
             if box_h_ratio < MIN_BOX_H_RATIO:
                 continue
 
-            # ── Map corners back to original frame via inverse warp ──
+            # Map corners back to original frame via inverse warp 
             corners_warped = np.float32([
                 [x1, y1], [x2, y1],
                 [x2, y2], [x1, y2]
@@ -141,14 +139,14 @@ def _run_yolo(model, img, ext_neg, ext_pos):
             ox2 = int(corners_orig[:, 0].max())
             oy2 = int(corners_orig[:, 1].max())
 
-            # ── Filter giant/garbage inverse-warp results ──
+            # Filter giant/garbage inverse-warp results 
             mapped_area = (ox2 - ox1) * (oy2 - oy1)
             if mapped_area > frame_area * MAX_BOX_AREA_RATIO:
                 continue
             if oy1 > fh * 0.80:
                 continue
 
-            # ── Clamp to frame ──
+            # Clamp to frame 
             ox1 = max(0, ox1);
             oy1 = max(0, oy1)
             ox2 = min(fw - 1, ox2);
@@ -160,7 +158,7 @@ def _run_yolo(model, img, ext_neg, ext_pos):
     return dets_orig
 
 
-# ── Lane Detection ───────────────────────────────────────────
+# Lane Detection 
 """Mask everything outside the lane trapezoid ROI."""
 def region_of_interest(img):
     r, c = img.shape[:2]
@@ -204,24 +202,23 @@ def extract_lane_color_mask(image):
 
 def kmeans_segmentation(img, k=4):
     global _prev_centers
-    # ── Change fx=0.5 to fx=0.25 ──────────────────────────
     small = cv2.resize(img, (0, 0), fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA)
     blur = cv2.GaussianBlur(small, (9, 9), 0)  # smaller kernel too (was 19,19)
     Z = blur.reshape(-1, 3).astype(np.float32)
-    crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 5, 2.0)  # fewer iters (was 10)
+    crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 5, 2.0)  
     if _prev_centers is not None:
         diffs = Z[:, None, :] - _prev_centers[None, :, :]
         li = np.argmin(np.linalg.norm(diffs, axis=2), axis=1).astype(np.int32)
         _, labels, centers = cv2.kmeans(Z, k, li, crit, 1, cv2.KMEANS_USE_INITIAL_LABELS, _prev_centers)
     else:
-        _, labels, centers = cv2.kmeans(Z, k, None, crit, 3, cv2.KMEANS_PP_CENTERS)  # attempts 3 (was 10)
+        _, labels, centers = cv2.kmeans(Z, k, None, crit, 3, cv2.KMEANS_PP_CENTERS)  # attempts 3
     _prev_centers = centers
     grays = [1, 64, 128, 255]
     gray_small = np.array([grays[l] for l in labels.flatten()], np.uint8).reshape(blur.shape[:2])
     return cv2.resize(gray_small, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_NEAREST)
 
-"""Return the k-means label value that covers the most of the ROI (the road cluster)."""
 
+"""Return the k-means label value that covers the most of the ROI (the road cluster)."""
 def best_label(mask_img):
     roi = region_of_interest(mask_img)
 
